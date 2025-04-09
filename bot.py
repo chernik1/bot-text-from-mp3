@@ -9,6 +9,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.token import TokenValidationError
 from dotenv import load_dotenv
 
+from converter import convert_audio_from_video
 from gemini import Gemini
 
 
@@ -69,7 +70,7 @@ class TelegramBot:
                 download_path = os.path.join("downloads", file_name)
 
                 file = await message.bot.get_file(file_id)
-                await message.bot.download(file, destination=download_path)
+                await message.bot.download_file(file.file_path, destination=download_path)
 
                 logging.info(f"Audio downloaded as: {file_name}")
 
@@ -77,8 +78,79 @@ class TelegramBot:
                 await message.reply(response)
             except Exception as e:
                 logging.error(f"Error downloading audio: {e}")
-                message.reply(f"Can't download audio. Please try again.")
+                await message.reply("Can't download audio. Please try again.")
 
+        @self.dp.message(F.video)
+        async def handle_video(message: types.Message):
+            try:
+                video = message.video
+                file_id = video.file_id
+                file_name = video.file_name or f"video_{file_id}.{video.mime_type.split('/')[-1] if video.mime_type else 'mp4'}"
+
+                if video.file_size > 20 * 1024 * 1024:
+                    await message.reply("File size exceeds the 20MB limit. Please send a smaller video.")
+                    return
+
+                os.makedirs("downloads", exist_ok=True)
+                download_path = os.path.join("downloads", file_name)
+
+                file = await message.bot.get_file(file_id)
+                await message.bot.download_file(file.file_path, destination=download_path)
+
+                logging.info(f"Video downloaded successfully: {file_name}")
+
+                try:
+                    path_to_audio = await convert_audio_from_video(download_path)
+                except Exception as e:
+                    logging.error(f"Video-to-audio conversion failed: {e}")
+                    await message.reply("Failed to extract audio from the video. The file may be corrupted or unsupported.")
+                    return
+
+                try:
+                    text = await self.client.translate_audio(path_to_audio)
+                    await message.reply(text)
+                    logging.info(f"Audio transcription successful: {text[:100]}...")
+                except Exception as e:
+                    logging.error(f"Audio transcription failed: {e}")
+                    await message.reply("Failed to transcribe audio. The audio may be unclear or too short.")
+            except Exception as e:
+                logging.error(f"Video download error: {e}")
+                await message.reply(
+                    "Failed to download the video. Ensure the file is sent as a video (not a link or document).")
+
+        @self.dp.message(F.video_note)
+        async def handle_video_note(message: types.Message):
+            try:
+                video_note = message.video_note
+                file_id = video_note.file_id
+                file_unique_id = video_note.file_unique_id
+
+                os.makedirs("downloads", exist_ok=True)
+                download_path = f"downloads/{file_unique_id}.mp4"
+
+                file = await message.bot.get_file(file_id)
+                await message.bot.download_file(file.file_path, destination=download_path)
+
+                logging.info(f"Video note saved: {download_path}")
+
+                try:
+                    path_to_mp3 = await convert_audio_from_video(download_path)
+                    logging.info(f"Path to mp3 from video note: {path_to_mp3}")
+                except Exception as e:
+                    message.reply("Can't get text from videos. Please, try again.")
+                    logging.error(f"ERROR get path mp3 from video note: {e}")
+
+                try:
+                    text = await self.client.translate_audio(path_to_mp3)
+                    await message.reply(text)
+                    logging.info(f"Text from video note: text")
+                except Exception as e:
+                    message.reply("Can't text from video note. Please, try again.")
+                    logging.error(f"ERROR get text from mp3 {e}")
+            except Exception as e:
+                message.reply("Can't text from video note. Please, try again.")
+                logging.error(f"Video note processing error: {e}")
+                raise e
 
 
     async def run(self):

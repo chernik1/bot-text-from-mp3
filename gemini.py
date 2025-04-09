@@ -27,23 +27,19 @@ class Gemini:
             logging.info(f"File uploaded successfully. ID: {myfile.name} (from path: {path})")
         except FileNotFoundError:
             logging.error(f"ERROR: File not found at path: {path}")
-            return f"Error: Could not find the file '{path}'. Please check the path."
         except PermissionError:
             logging.error(f"ERROR: Permission denied for file: {path}")
-            return f"Error: Do not have permission to read the file '{path}'."
         except Exception as e:
             logging.error(f"ERROR during upload for file {path}: {e}")
-            return "Don't upload audio. Please try again."
 
         try:
             response = await self.client.aio.models.generate_content(
               model="gemini-2.0-flash",
               contents=["Write all text from audio. Language: Any", myfile]
             )
-            logging.info(f"Audio translated. Response: {response.text}. File: {path}")
+            logging.info(f"Audio translated. Response: TEXT. File: {path}")
         except Exception as e:
             logging.error(f"ERROR: {e}. File: {path}")
-            return "Can't translate audio. Please try again."
 
         await self.__delete_file(myfile, path)
         return response.text
