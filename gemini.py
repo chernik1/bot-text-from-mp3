@@ -40,8 +40,8 @@ class Gemini:
             logging.info(f"Audio translated. Response: TEXT. File: {path}")
         except Exception as e:
             logging.error(f"ERROR: {e}. File: {path}")
-
-        await self.__delete_file(myfile, path)
+        finally:
+            await self.__delete_file(myfile, path)
         return response.text
 
     async def __delete_file(self, file, path):

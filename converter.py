@@ -17,10 +17,11 @@ async def convert_audio_from_video(path_to_video: str) -> str:
 
         await asyncio.to_thread(__convert)
         logging.info(f"Audio converted from video: {path_to_video}")
-        await __delete_video(path_to_video)
         return output_audio_path
     except Exception as e:
         logging.error(f"ERROR CONVERTING audio from video: {e}")
+    finally:
+        await __delete_video(path_to_video)
 
 async def __delete_video(path: str):
     try:
